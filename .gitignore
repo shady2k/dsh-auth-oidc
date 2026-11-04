@@ -1,0 +1,12 @@
+node_modules/
+lib/
+*.tgz
+coverage/
+test-results/
+release/
+.env
+.env.*
+!.env.example
+.npmrc
+*.pem
+*.key

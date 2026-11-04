@@ -1,0 +1,33 @@
+- id: credentials
+  name: cordis:credentials
+  config:
+    path: !!js oidcTest.credentialsPath
+    watch: false
+- id: webserver
+  name: cordis:webserver
+  config:
+    host: 127.0.0.1
+    port: 0
+- id: connection
+  name: cordis:connection
+  config:
+    trustedHosts: [dsh.example]
+- id: oidc
+  name: cordis:oidc
+  config:
+    enabled: true
+    issuer: !!js oidcTest.issuer
+    publicUrl: https://dsh.example/
+    clientId: dsh-test-client
+    clientSecretRef: OIDC_TEST_SECRET
+    allowedSubjects: [owner-subject]
+    allowedGroups: []
+    groupsClaim: groups
+    scopes: [openid, profile]
+    loginMaxAgeSeconds: 300
+    sessionMaxAgeSeconds: 120
+    maxPendingLogins: 4
+    maxSessions: 4
+    requestTimeoutSeconds: 10
+- id: page
+  name: cordis:page

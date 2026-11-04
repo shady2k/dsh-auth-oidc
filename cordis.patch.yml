@@ -1,0 +1,5 @@
+- insert:
+    - id: auth-oidc-settings
+      name: dsh-auth-oidc
+      config:
+        enabled: false

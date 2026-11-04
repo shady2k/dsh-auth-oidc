@@ -1,0 +1,348 @@
+diff --git a/packages/client/connection/src/browser-auth.ts b/packages/client/connection/src/browser-auth.ts
+index 5c8594df6f..085b87cfff 100644
+--- a/packages/client/connection/src/browser-auth.ts
++++ b/packages/client/connection/src/browser-auth.ts
+@@ -250,17 +250,24 @@ export class BrowserAuth {
+   /**
+    * Authenticate an index request. A valid root query token mints the cookie
+    * and redirects to the directory-relative clean `./`; a valid cookie lets
+-   * the caller serve the index; every other request receives the same minimal
+-   * 401 response.
++   * the caller serve the index. Other requests receive the minimal 401 unless
++   * additional authentication handles a token-free unauthenticated request.
+    * @param req - incoming root or configured-index request.
+    * @param res - response owned when this method returns false.
+    * @param secure - whether the listener receiving this request serves TLS; the
+    * minted cookie carries `Secure` when it does. Only that listener's own
+    * protocol decides, never a `publicUrl` announcement or a forwarded header:
+    * those describe a hop this process does not terminate.
++   * @param onUnauthorized - additional authentication called only without a token query or valid built-in session;
++   * undefined delegates the 401.
+    * @returns true only when the caller may serve index.html.
+    */
+-  authorizeIndex(req: ConnectionIndexRequest, res: ConnectionIndexResponse, secure = false): boolean {
++  authorizeIndex(
++    req: ConnectionIndexRequest,
++    res: ConnectionIndexResponse,
++    secure = false,
++    onUnauthorized?: () => boolean | undefined,
++  ): boolean {
+     /* v8 ignore next -- node:http always supplies url on server requests. */
+     const url = new URL(req.url ?? '/', 'http://dsh.invalid')
+     const tokens = url.searchParams.getAll(TOKEN_QUERY)
+@@ -300,6 +307,8 @@ export class BrowserAuth {
+       return false
+     }
+     if (this.isAuthenticated(req, secure)) return true
++    const additional = onUnauthorized?.()
++    if (additional !== undefined) return additional
+     this.writeUnauthorized(req, res)
+     return false
+   }
+diff --git a/packages/client/connection/src/index.ts b/packages/client/connection/src/index.ts
+index d563cd40e8..0c3f4353b6 100644
+--- a/packages/client/connection/src/index.ts
++++ b/packages/client/connection/src/index.ts
+@@ -17,6 +17,8 @@ import { ConnectionRecoveryConfigSchema, resolveConnectionConfig, type Connectio
+ export type {
+   PeerAdmission,
+   ConnectionAdmission,
++  ConnectionBrowserAuthProvider,
++  HostConnectionBrowserAuth,
+   ConnectionFetchMethod,
+   ConnectionFetchHandler,
+   ConnectionFetchRoute,
+diff --git a/packages/client/connection/src/rpc-host.ts b/packages/client/connection/src/rpc-host.ts
+index 88e7b48baa..5cc01f876f 100644
+--- a/packages/client/connection/src/rpc-host.ts
++++ b/packages/client/connection/src/rpc-host.ts
+@@ -18,6 +18,8 @@ import { Peer } from './peer.ts'
+ import type {
+   PeerAdmission,
+   ConnectionAdmission,
++  ConnectionBrowserAuthProvider,
++  HostConnectionBrowserAuth,
+   ConnectionIndexRequest,
+   ConnectionIndexResponse,
+   ConnectionFetchRoute,
+@@ -73,6 +75,7 @@ export class HostConnectionService extends Service implements HostConnectionHand
+   private readonly peers = new Map<PeerId, PeerRecord>()
+   private readonly owner: Context
+   private disposed = false
++  private readonly browserAuthSeat: { provider?: ConnectionBrowserAuthProvider } = {}
+   private readonly interceptors = new Map<string, ConnectionRpcInterceptor>()
+   private readonly fetchRoutes = new Map<string, RegisteredFetchRoute>()
+ 
+@@ -82,18 +85,19 @@ export class HostConnectionService extends Service implements HostConnectionHand
+    * Provide the Host half over the active HTTP server.
+    * @param ctx - owning Connection plugin context.
+    * @param trustedHosts - deployment authorities accepted by the Host/Origin fence.
+-   * @param browserAuth - process token and persistent browser-session owner.
++   * @param builtinBrowserAuth - process token and persistent browser-session owner.
+    */
+   constructor(
+     ctx: Context,
+     private readonly trustedHosts: readonly string[],
+-    private readonly browserAuth: BrowserAuth,
++    private readonly builtinBrowserAuth: BrowserAuth,
+   ) {
+     super(ctx, 'connection')
+     this.owner = ctx
+     this.browserPeer = new Peer(ctx, { principal: { kind: 'owner' } })
+     ctx.effect(() => async () => {
+       this.disposed = true
++      delete this.browserAuthSeat.provider
+       const peers = [this.browserPeer, ...Array.from(this.peers.values(), record => record.peer)]
+       this.peers.clear()
+       await Promise.all(peers.map(peer => peer.dispose()))
+@@ -119,6 +123,21 @@ export class HostConnectionService extends Service implements HostConnectionHand
+     }
+   }
+ 
++  /** Single additional browser authentication seat scoped to the Context reading this service. */
++  get browserAuth(): HostConnectionBrowserAuth {
++    const owner = this.ctx
++    return {
++      register: provider => owner.effect(() => {
++        if (this.disposed) throw new Error('connection: browser authentication registry is disposed')
++        if (this.browserAuthSeat.provider !== undefined) {
++          throw new Error('connection: browser authentication provider already registered')
++        }
++        this.browserAuthSeat.provider = provider
++        return () => { delete this.browserAuthSeat.provider }
++      }, 'client-connection: browser authentication provider'),
++    }
++  }
++
+   /** Apply the Host/Origin fence and require an authenticated live Peer. */
+   requestRejection(request: ConnectionTrustRequest): ConnectionRequestRejection {
+     const admission = this.admit(request)
+@@ -130,8 +149,9 @@ export class HostConnectionService extends Service implements HostConnectionHand
+     if (!this.isTrusted(request)) return { rejection: 403 }
+     if (this.disposed) return { rejection: 401 }
+     const secure = this.owner.get('webServer')?.protocol === 'https:'
+-    if (this.browserAuth.isAuthenticated(request, secure)) return { peer: this.browserPeer }
+-    const id = this.browserAuth.authenticateApi(request, secure)
++    if (this.builtinBrowserAuth.isAuthenticated(request, secure)
++      || this.browserAuthSeat.provider?.authenticate(request) === true) return { peer: this.browserPeer }
++    const id = this.builtinBrowserAuth.authenticateApi(request, secure)
+     const record = id === undefined ? undefined : this.peers.get(id)
+     return record === undefined ? { rejection: 401 } : { peer: record.peer }
+   }
+@@ -183,7 +203,7 @@ export class HostConnectionService extends Service implements HostConnectionHand
+       response.end(this.disposed ? 'unauthorized' : 'forbidden')
+       return
+     }
+-    this.browserAuth.authorizeConnect(request, response,
++    this.builtinBrowserAuth.authorizeConnect(request, response,
+       this.owner.get('webServer')?.protocol === 'https:', interactions => this.publishPeer(interactions))
+   }
+ 
+@@ -191,12 +211,24 @@ export class HostConnectionService extends Service implements HostConnectionHand
+    * Authenticate an index request; native TLS listeners mint Secure cookies.
+    */
+   authorizeIndex(request: ConnectionIndexRequest, response: ConnectionIndexResponse): boolean {
+-    return this.browserAuth.authorizeIndex(request, response, this.ctx.get('webServer')?.protocol === 'https:')
++    if (!this.isTrusted(request) || this.disposed) {
++      response.writeHead(this.disposed ? 401 : 403)
++      response.end(this.disposed ? 'unauthorized' : 'forbidden')
++      return false
++    }
++    return this.builtinBrowserAuth.authorizeIndex(
++      request,
++      response,
++      this.ctx.get('webServer')?.protocol === 'https:',
++      () => this.browserAuthSeat.provider?.authenticate(request) === true
++        ? true
++        : this.browserAuthSeat.provider?.authorizeIndex(request, response),
++    )
+   }
+ 
+   /** Add this process's launch token to the clean application URL. */
+   authenticatedUrl(baseUrl: string): string {
+-    return this.browserAuth.authenticatedUrl(baseUrl)
++    return this.builtinBrowserAuth.authenticatedUrl(baseUrl)
+   }
+ 
+   /**
+diff --git a/packages/client/connection/src/rpc.ts b/packages/client/connection/src/rpc.ts
+index aec79d0728..9a62b9a7b7 100644
+--- a/packages/client/connection/src/rpc.ts
++++ b/packages/client/connection/src/rpc.ts
+@@ -202,12 +202,46 @@ export interface HostConnectionRpc {
+   ): () => Promise<void>
+ }
+ 
++/** Additional browser authentication granting the shared owner Peer, not an isolated user. */
++export interface ConnectionBrowserAuthProvider {
++  /**
++   * Authenticate one request synchronously from provider-owned local session state.
++   * Host/Origin checks run before this method for index, API, and upgrade admission.
++   * @param request - HTTP or upgrade headers carrying the provider's credential.
++   * @returns true to grant the shared owner browser Peer.
++   */
++  authenticate(request: ConnectionTrustRequest): boolean
++
++  /**
++   * Handle an unauthenticated index request without a launch-token query.
++   * The provider owns its authority checks and any response it writes.
++   * @param request - root or configured-index request.
++   * @param response - response owned when returning false.
++   * @returns true to serve the index, false after answering, or undefined to delegate the 401.
++   */
++  authorizeIndex(request: ConnectionIndexRequest, response: ConnectionIndexResponse): boolean | undefined
++}
++
++/** Single additional browser authentication seat, scoped to its registering Context. */
++export interface HostConnectionBrowserAuth {
++  /**
++   * Register one provider alongside the built-in launch-token authentication.
++   * A second provider throws; disposal immediately removes admission for subsequent requests.
++   * Existing admitted calls and sockets are not cancelled by removal.
++   * @param provider - synchronous session admission and unauthenticated index handler.
++   * @returns asynchronous disposer removing this exact provider.
++   */
++  register(provider: ConnectionBrowserAuthProvider): () => Promise<void>
++}
++
+ /** Host `ctx.connection` members consumed by transport-independent adapters. */
+ export interface HostConnectionHandle {
+   /** Generic RPC channel registry. */
+   readonly rpc: HostConnectionRpc
+   /** Exact Fetch routes for streaming or browser-native responses. */
+   readonly fetch: HostConnectionFetch
++  /** Additional browser authentication; built-in launch-token access remains enabled. */
++  readonly browserAuth: HostConnectionBrowserAuth
+   /** The owner Peer every authenticated browser connection shares. */
+   readonly browserPeer: PeerScope
+ 
+@@ -233,7 +267,7 @@ export interface HostConnectionHandle {
+   requestRejection(request: ConnectionTrustRequest): ConnectionRequestRejection
+ 
+   /**
+-   * Admit an HTTP request against its signed browser or API credential and live Peer.
++   * Admit an HTTP request against built-in credentials or the registered browser provider and live Peer.
+    * @param request - request headers from the HTTP or upgrade request.
+    * @returns the credential's Peer, or the rejection status.
+    */
+@@ -256,7 +290,9 @@ export interface HostConnectionHandle {
+   admitConnection(request: ConnectionTrustRequest): ConnectionAdmission
+ 
+   /**
+-   * Authenticate one frontend index request, owning a token redirect or 401.
++   * Authenticate one frontend index request, owning a token redirect, provider response, or 401.
++   * Host/Origin checks run first. Without a built-in browser session or any token query,
++   * a registered provider authenticates the request or handles the unauthenticated response.
+    * The cookie this mints is `Secure` when the mounted Web carrier serves TLS,
+    * which only that listener's protocol decides.
+    * @param request - root or configured-index HTTP request.
+diff --git a/packages/client/connection/tests/node-half.host.spec.ts b/packages/client/connection/tests/node-half.host.spec.ts
+index 8be225209f..d9f60ca99c 100644
+--- a/packages/client/connection/tests/node-half.host.spec.ts
++++ b/packages/client/connection/tests/node-half.host.spec.ts
+@@ -16,6 +16,8 @@ import {
+   inject,
+   type ClientRequest,
+   type ConnectionConfig,
++  type ConnectionIndexRequest,
++  type ConnectionTrustRequest,
+   type HostConnectionHandle,
+   type PeerScope,
+ } from '../src/index.ts'
+@@ -140,6 +142,96 @@ function browserCookie(connection: HostConnectionHandle, authority: string): str
+ }
+ 
+ describe('connection node half', () => {
++  it('admits provider sessions after the trust fence and removes admission with the provider fiber', async () => {
++    const { ctx, connection, dispose } = await mounted()
++    const authenticate = vi.fn((request: ConnectionTrustRequest) =>
++      request.headers instanceof Headers
++        ? request.headers.get('cookie') === 'external=session'
++        : request.headers.cookie === 'external=session')
++    const authorizeIndex = vi.fn(() => undefined)
++    const provider = { authenticate, authorizeIndex }
++    const fiber = ctx.plugin({ inject: ['connection'], apply(owner: Context) {
++      owner.connection.browserAuth.register(provider)
++    } })
++    try {
++      await fiber.await()
++      expect(() => connection.browserAuth.register(provider)).toThrow('already registered')
++      const request = fakeRequest({ host: 'localhost', cookie: 'external=session' })
++      expect(connection.admit(request)).toEqual({ peer: connection.browserPeer })
++      expect(connection.authorizeIndex(fakeRequest({ host: 'localhost', cookie: 'external=session' }, '/'), fakeResponse().response)).toBe(true)
++      expect(authorizeIndex).not.toHaveBeenCalled()
++      const socket = connection.admitConnection(request)
++      expect(socket).toMatchObject({ peer: connection.browserPeer })
++      if ('peer' in socket) await socket.release()
++      expect(connection.requestRejection(request)).toBeUndefined()
++      authenticate.mockClear()
++      expect(connection.admit(fakeRequest({ host: 'attacker.test', cookie: 'external=session' })))
++        .toEqual({ rejection: 403 })
++      expect(connection.admit(fakeRequest({ host: 'localhost', origin: 'https://attacker.test', cookie: 'external=session' })))
++        .toEqual({ rejection: 403 })
++      const forbiddenIndex = fakeResponse()
++      expect(connection.authorizeIndex(fakeRequest({ host: 'attacker.test' }, '/'), forbiddenIndex.response)).toBe(false)
++      expect(forbiddenIndex.state.status).toBe(403)
++      expect(authenticate).not.toHaveBeenCalled()
++      expect(authorizeIndex).not.toHaveBeenCalled()
++      await fiber.dispose()
++      expect(connection.admit(request)).toEqual({ rejection: 401 })
++      expect(connection.authorizeIndex(fakeRequest({ host: 'localhost' }, '/'), fakeResponse().response)).toBe(false)
++      expect(authorizeIndex).not.toHaveBeenCalled()
++      const unregister = connection.browserAuth.register(provider)
++      expect(connection.admit(request)).toEqual({ peer: connection.browserPeer })
++      await unregister()
++      const unregisterReplacement = connection.browserAuth.register(provider)
++      await unregister()
++      expect(connection.admit(request)).toEqual({ peer: connection.browserPeer })
++      await unregisterReplacement()
++      expect(connection.admit(request)).toEqual({ rejection: 401 })
++    } finally {
++      await fiber.dispose()
++      await dispose()
++    }
++  })
++
++  it('delegates only clean unauthenticated index requests without replacing launch-token processing', async () => {
++    const { connection, dispose } = await mounted()
++    let result: boolean | undefined
++    const authorizeIndex = vi.fn((_request: ConnectionIndexRequest, response: Parameters<HostConnectionHandle['authorizeIndex']>[1]) => {
++      if (result === false) {
++        response.writeHead(303, { location: '/auth/login' })
++        response.end()
++      }
++      return result
++    })
++    const unregister = connection.browserAuth.register({ authenticate: () => false, authorizeIndex })
++    try {
++      const clean = fakeRequest({ host: 'localhost' }, '/')
++      const delegated = fakeResponse()
++      expect(connection.authorizeIndex(clean, delegated.response)).toBe(false)
++      expect(delegated.state.status).toBe(401)
++      result = false
++      const redirected = fakeResponse()
++      expect(connection.authorizeIndex(clean, redirected.response)).toBe(false)
++      expect(redirected.state).toMatchObject({ status: 303, headers: { location: '/auth/login' } })
++      result = true
++      expect(connection.authorizeIndex(clean, fakeResponse().response)).toBe(true)
++      authorizeIndex.mockClear()
++      const invalid = fakeResponse()
++      expect(connection.authorizeIndex(fakeRequest({ host: 'localhost' }, '/?token=invalid'), invalid.response)).toBe(false)
++      expect(invalid.state.status).toBe(401)
++      const duplicate = fakeResponse()
++      expect(connection.authorizeIndex(fakeRequest({ host: 'localhost' }, '/?token=a&token=b'), duplicate.response)).toBe(false)
++      expect(duplicate.state.status).toBe(401)
++      const cookie = browserCookie(connection, 'localhost')
++      expect(connection.authorizeIndex(fakeRequest({ host: 'localhost', cookie }, '/'), fakeResponse().response)).toBe(true)
++      expect(authorizeIndex).not.toHaveBeenCalled()
++      await unregister()
++      expect(connection.authorizeIndex(clean, fakeResponse().response)).toBe(false)
++    } finally {
++      await unregister()
++      await dispose()
++    }
++  })
++
+   it('runs request admission after authentication and removes it with its owning fiber', async () => {
+     const { ctx, routes, connection, dispose } = await mounted()
+     let admitted = 0

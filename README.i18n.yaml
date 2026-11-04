@@ -1,0 +1,42 @@
+# Bilingual-pair consistency record for README.md: per heading, hashes of translated blocks.
+# Generated with DSH scripts/translation-pairing-record.ts and this repository as repoRoot.
+# Update both aligned README files before recomputing the record; the DSH generator is not bundled.
+/:
+  en: ccf663f9bd9ab950
+  zh: 3d575155945cec7c
+/dsh-auth-oidc:
+  en: 652f0289ddbe026a
+  zh: 1491c3a89b489f96
+/dsh-auth-oidc/summary:
+  en: 51bb38984e409fc2
+  zh: 2621ec01c1d7ab81
+/dsh-auth-oidc/table-of-contents:
+  en: 7041bdad8381beed
+  zh: f7741eb61a449d57
+/dsh-auth-oidc/compatibility-prerequisite:
+  en: 991cfaa706b6f4cb
+  zh: df7962fc53cc2225
+/dsh-auth-oidc/build-and-install-locally:
+  en: 12f7c2e268e72c71
+  zh: 5f31f9601e6b0b2a
+/dsh-auth-oidc/configure-authentik:
+  en: c6084651f2f7a285
+  zh: 45d81357d6bc8378
+/dsh-auth-oidc/configure-dsh:
+  en: fd3d71ea55b8e76d
+  zh: 671c5957bf5c1cd9
+/dsh-auth-oidc/configuration-reference:
+  en: 40801b78301d6185
+  zh: 0904d320d07c1111
+/dsh-auth-oidc/session-behavior:
+  en: f69f4febbec1de9b
+  zh: a6b10d8506c8cfb1
+/dsh-auth-oidc/development:
+  en: e9b6db1838342dda
+  zh: 7e069a2d2b6cd3ca
+/dsh-auth-oidc/model-experience:
+  en: 6b5cb7938796a9d4
+  zh: 447a2679281aa362
+/dsh-auth-oidc/known-limitations:
+  en: e6adf78fadf1040c
+  zh: e69dd362b1bc1d16

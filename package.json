@@ -1,0 +1,133 @@
+{
+  "name": "dsh-auth-oidc",
+  "version": "0.1.4",
+  "description": "Unofficial native authentik OIDC browser login for DSH with explicit owner admission",
+  "author": "shady2k",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/shady2k/dsh-auth-oidc.git"
+  },
+  "homepage": "https://github.com/shady2k/dsh-auth-oidc#readme",
+  "bugs": {
+    "url": "https://github.com/shady2k/dsh-auth-oidc/issues"
+  },
+  "keywords": ["dsh", "deepseek-harness", "authentik", "oidc", "sso", "cordis"],
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org",
+    "tag": "next"
+  },
+  "packageManager": "pnpm@11.7.0",
+  "type": "module",
+  "license": "MIT",
+  "engines": {
+    "node": ">=24.9.0",
+    "dsh": "0.2.2-rc.1"
+  },
+  "main": "lib/configure.js",
+  "types": "lib/configure.d.ts",
+  "icon": "./icon.svg",
+  "exports": {
+    ".": {
+      "types": "./lib/configure.d.ts",
+      "default": "./lib/configure.js"
+    },
+    "./runtime": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./configure": {
+      "types": "./lib/configure.d.ts",
+      "default": "./lib/configure.js"
+    },
+    "./client": {
+      "types": "./lib/client/index.d.ts",
+      "default": "./lib/client.js"
+    },
+    "./package.json": "./package.json",
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./locale/*.json": "./locale/*.json",
+    "./icon.svg": "./icon.svg"
+  },
+  "files": [
+    "lib",
+    "locale/*.json",
+    "icon.svg",
+    "cordis.patch.yml",
+    "docs",
+    "README.md",
+    "README.zh.md",
+    "SECURITY.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "inject": [
+        "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-client-ui-settings",
+        "@deepseek-ai/dsh-client-ui-plugin-manager",
+        "@deepseek-ai/dsh-api-remotes"
+      ],
+      "platform": "web"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json && node scripts/build-client.mjs",
+    "typecheck": "tsc -p tsconfig.check.json",
+    "test": "vitest run tests/oidc.host.spec.ts tests/compatibility.spec.ts tests/bundle.spec.ts tests/configure.spec.ts tests/configure.client.spec.ts tests/configure.mount.spec.ts tests/configure.setup.spec.ts tests/configure.remote.spec.ts",
+    "test:integration": "vitest run tests/loader-composition.spec.ts",
+    "test:browser": "vitest run tests/oidc.browser.e2e.ts",
+    "check:package": "node scripts/check-package.mjs",
+    "check:packed": "node scripts/verify-packed.mjs",
+    "prepack": "npm run build && npm run check:package"
+  },
+  "dependencies": {
+    "@deepseek-ai/schemastery": "~3.19.0",
+    "openid-client": "6.8.9"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "~4.1.0",
+    "@deepseek-ai/dsh-client-connection": "0.2.2-rc.1",
+    "@deepseek-ai/dsh-credentials": "0.2.2-rc.1",
+    "@deepseek-ai/dsh-host-webserver": "0.2.2-rc.1",
+    "@deepseek-ai/dsh-typert-protocol": "0.2.2-rc.1"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "4.1.0",
+    "@deepseek-ai/cordis-plugin-include": "1.1.0",
+    "@deepseek-ai/cordis-plugin-loader": "1.1.0",
+    "@deepseek-ai/dsh-api-gateway": "0.2.2-rc.1",
+    "@deepseek-ai/dsh-api-remotes": "0.2.2-rc.1",
+    "@deepseek-ai/dsh-api-settings-controller": "0.2.2-rc.1",
+    "@deepseek-ai/dsh-client-connection": "0.2.2-rc.1",
+    "@deepseek-ai/dsh-client-locale": "0.2.2-rc.1",
+    "@deepseek-ai/dsh-client-store": "0.2.2-rc.1",
+    "@deepseek-ai/dsh-client-ui-plugin-manager": "0.2.2-rc.1",
+    "@deepseek-ai/dsh-client-ui-primitives": "0.2.2-rc.1",
+    "@deepseek-ai/dsh-client-ui-renderer": "0.2.2-rc.1",
+    "@deepseek-ai/dsh-client-ui-settings": "0.2.2-rc.1",
+    "@deepseek-ai/dsh-client-ui-slots": "0.2.2-rc.1",
+    "@deepseek-ai/dsh-credentials": "0.2.2-rc.1",
+    "@deepseek-ai/dsh-credentials-local": "0.2.2-rc.1",
+    "@deepseek-ai/dsh-host-webserver": "0.2.2-rc.1",
+    "@deepseek-ai/dsh-typert-protocol": "0.2.2-rc.1",
+    "@deepseek-ai/dsh-typert-registry": "0.2.2-rc.1",
+    "@types/node": "^24.0.0",
+    "@types/react": "19.2.2",
+    "esbuild": "0.25.12",
+    "immer": "10.1.1",
+    "jose": "6.2.3",
+    "playwright": "1.61.1",
+    "react": "19.2.0",
+    "selfsigned": "4.0.1",
+    "typescript": "~5.9.3",
+    "vitest": "3.2.4",
+    "yaml": "^2.9.0",
+    "zod": "4.1.12",
+    "zustand": "4.5.7"
+  }
+}

@@ -1,0 +1,2 @@
+# Unified-diff context includes a required single space on empty source lines.
+compat/*.patch whitespace=-blank-at-eol

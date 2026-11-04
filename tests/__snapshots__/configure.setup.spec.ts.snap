@@ -1,0 +1,127 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`keeps provider setup, credentials, admission, and activation guidance localized 1`] = `
+{
+  "callbackLabel": {
+    "en": "Redirect URI",
+    "zh": "重定向 URI",
+  },
+  "setupApplication": {
+    "en": "authentik Admin → Applications → New Application → OAuth2/OIDC. Configure the linked provider with these values and an asymmetric signing key.",
+    "zh": "authentik 管理界面 → Applications → New Application → OAuth2/OIDC。使用下列值配置关联的提供方，并选择非对称签名密钥。",
+  },
+  "setupClientType": {
+    "en": "Client type",
+    "zh": "客户端类型",
+  },
+  "setupCopied": {
+    "en": "Copied",
+    "zh": "已复制",
+  },
+  "setupCopy": {
+    "en": "Copy",
+    "zh": "复制",
+  },
+  "setupCopyFailed": {
+    "en": "Clipboard unavailable. Select the value and copy it manually.",
+    "zh": "无法使用剪贴板。请选择该值并手动复制。",
+  },
+  "setupDocs": {
+    "en": "authentik OAuth2/OIDC documentation",
+    "zh": "authentik OAuth2/OIDC 文档",
+  },
+  "setupField": {
+    "en": "Field",
+    "zh": "字段",
+  },
+  "setupFinish": {
+    "en": "Save while disabled, then enable and save. Wait for “OIDC login active” and test in a private window without closing your native owner session.",
+    "zh": "保持停用并保存，再启用并保存。等待“OIDC 登录正在运行”后使用无痕窗口测试，不要关闭当前原生所有者会话。",
+  },
+  "setupFlow": {
+    "en": "Grant type",
+    "zh": "授权类型",
+  },
+  "setupGroups": {
+    "en": "Group names must be an array in the signed ID token, not only UserInfo. Configure the authentik claim mapping and any required scope.",
+    "zh": "组名必须是已签名 ID token 中的数组，不能仅由 UserInfo 提供。请配置 authentik 声明映射及其所需作用域。",
+  },
+  "setupPending": {
+    "en": "Fill in below",
+    "zh": "请在下方填写",
+  },
+  "setupPkce": {
+    "en": "PKCE method",
+    "zh": "PKCE 方法",
+  },
+  "setupPrefill": {
+    "en": "Values follow unsaved edits. Check the suggested Public DSH URL and mount path before saving; existing values are kept.",
+    "zh": "显示值随未保存的编辑更新。保存前请核对预填的 DSH 公共 URL 和挂载路径；已有值不会覆盖。",
+  },
+  "setupRedirectMode": {
+    "en": "Redirect URI matching",
+    "zh": "重定向 URI 匹配",
+  },
+  "setupRemaining": {
+    "en": "Fill in the issuer, Client ID, write-only Client secret, and allowed identities below. Installation does not enable login.",
+    "zh": "在下方填写签发者、客户端 ID、只写客户端密钥和允许的身份。安装不会启用登录。",
+  },
+  "setupTitle": {
+    "en": "Set up authentik",
+    "zh": "配置 authentik",
+  },
+  "setupTokenAuth": {
+    "en": "Token endpoint authentication",
+    "zh": "Token 端点认证",
+  },
+  "setupValue": {
+    "en": "Value",
+    "zh": "值",
+  },
+}
+`;
+
+exports[`shows copyable current drafts and protocol values, never provider guesses or secrets 1`] = `
+[
+  {
+    "label": "publicUrl",
+    "value": "https://dsh.example/",
+  },
+  {
+    "label": "callbackLabel",
+    "value": "https://dsh.example/auth/oidc/callback",
+  },
+  {
+    "label": "setupClientType",
+    "value": "Confidential",
+  },
+  {
+    "label": "setupRedirectMode",
+    "value": "Strict",
+  },
+  {
+    "label": "setupFlow",
+    "value": "authorization_code",
+  },
+  {
+    "label": "setupPkce",
+    "value": "S256",
+  },
+  {
+    "label": "setupTokenAuth",
+    "value": "client_secret_basic",
+  },
+  {
+    "label": "clientSecretRef",
+    "value": "DSH_OIDC_CLIENT_SECRET",
+  },
+  {
+    "label": "scopes",
+    "value": "openid profile",
+  },
+  {
+    "label": "groupsClaim",
+    "value": "groups",
+  },
+]
+`;
